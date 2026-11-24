@@ -3541,6 +3541,10 @@ dialog:is(.metric-detail-dialog,.home-summary-dialog,.clinic-gallery-dialog,.tow
 /* 固定以嘉兴市为入口，隐藏省级返回和行政层级切换。 */
 .dashboard-board .map-levels{display:none!important}
 .dashboard-board [data-map-back]:disabled{display:none!important}
+.dashboard-board:is(.situation-board,.construction-board,.outcome-board) .board-title h1{font-size:42px;line-height:55px;letter-spacing:4.2px;text-shadow:0 2px 3px rgba(17,20,22,.31),0 0 46px rgba(46,174,255,.49)}
+.dashboard-board.outcome-board .outcome-new-ranking .outcome-ranking-heading{margin-top:26px}
+.dashboard-board.outcome-board .outcome-new-ranking .outcome-ranking-rows{padding:8px 0}
+.dashboard-board.outcome-board .outcome-new-ranking .outcome-ranking-average{padding-bottom:10px}
 
 /* The panel already has 16px padding; align the chart with its outer frame. */
 .dashboard-board.construction-board .clinic-tier-chart{width:calc(100% + 32px);margin-inline:-16px}

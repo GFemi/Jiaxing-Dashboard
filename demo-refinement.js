@@ -3134,17 +3134,18 @@ render();
 document.addEventListener('click',event=>{
   if(!event.target.closest?.('[data-open-clinic-photos]'))return;
   const node=currentNode(),level=scopeLevel();
-  const items=(window.CLINIC_PHOTOS||[]).filter(item=>{
-    if(!node)return true;
+  const items=(window.JIAXING_CLINIC_PHOTOS||[]).filter(item=>{
+    if(!clinicImages(item).length)return false;
+    if(!node)return item.city==='嘉兴市';
     if(level==='city')return item.city===node.name;
+    if(level==='county')return item.city===node.cityName&&item.county===node.name;
     if(level==='clinic')return item.name===node.name;
-    if(level==='consortium')return false;
-    return item.city===node.cityName&&item.name.includes(node.name);
+    return false;
   });
   const dialog=document.createElement('dialog');dialog.className='clinic-gallery-dialog';
   dialog.innerHTML=`<header><div><h2>${esc(regionLabel())} · 机构照片</h2><p>仅展示已收录照片的机构，照片资料未覆盖全部机构。</p></div><button type="button" data-gallery-close aria-label="关闭">×</button></header><div class="clinic-gallery-view"><aside class="clinic-gallery-side"><div class="clinic-gallery-search"><label for="clinicGallerySearch">机构名称</label><input id="clinicGallerySearch" type="search" placeholder="搜索机构" autocomplete="off"><small></small></div><div class="clinic-gallery-list"></div><div class="clinic-gallery-pager"><span></span><div><button type="button" data-gallery-page="-1" aria-label="上一页">‹</button><button type="button" data-gallery-page="1" aria-label="下一页">›</button></div></div></aside><div class="clinic-gallery-main"></div></div>`;
   (document.fullscreenElement||document.body).append(dialog);
-  let selected=0,photoIndex=0,page=0,filtered=items;const pageSize=8;
+  let selected=0,photoIndex=0,page=0,filtered=items;const pageSize=9;
   const draw=()=>{
     const pages=Math.ceil(filtered.length/pageSize),item=filtered[selected],photos=item?clinicImages(item):[],main=dialog.querySelector('.clinic-gallery-main');
     main.innerHTML=item&&photos.length?`<div class="clinic-gallery-photo-stage"><img src="${esc(photos[photoIndex])}" alt="${esc(item.name)}，第${photoIndex+1}张照片">${photos.length>1?`<button type="button" class="gallery-prev" data-gallery-step="-1" aria-label="上一张照片">‹</button><button type="button" class="gallery-next" data-gallery-step="1" aria-label="下一张照片">›</button>`:''}</div><div class="clinic-gallery-caption"><span class="clinic-gallery-name">${esc(item.name)}</span><span>${photoIndex+1} / ${photos.length}</span></div><div class="clinic-gallery-photo-nav">${photos.map((photo,i)=>`<button type="button" data-gallery-photo="${i}" aria-label="查看第${i+1}张照片" aria-pressed="${i===photoIndex}"><img src="${esc(photo)}" alt=""></button>`).join('')}</div>`:`<div class="clinic-gallery-empty">${items.length?'没有找到匹配的机构':'当前区域暂无已收录的机构照片'}</div>`;
@@ -4048,7 +4049,7 @@ showMetricDetail=function(el){
     const ratioBase={'全口径患者数':1850/6700.9,'专档患者数':748.5/1850,'风险分层人数':374.25/748.5,'高风险患者数':149.7/374.25,'中风险患者数':135/374.25,'低风险患者数':89.55/374.25}[label];
     const adjusted=weights.map((weight,i)=>weight*(1+.16*(variations[i]-mean))),adjustedTotal=adjusted.reduce((a,b)=>a+b,0)||1;
     return items.map((item,i)=>{
-      if(ratioBase){const denominator=(path.length?path[path.length-1].detailDenominator:selectedValue/ratioBase)*weights[i]/total,value=parent*adjusted[i]/adjustedTotal;return {value,denominator,display:`${value.toFixed(2)} 万人`}}
+      if(ratioBase){const parentDenominator=path[path.length-1]?.detailDenominator??selectedValue/ratioBase;const denominator=label==='全口径患者数'?(rawWeights[i]==null?null:rawWeights[i]/10000):parentDenominator*weights[i]/total,value=parent*adjusted[i]/adjustedTotal;return {value,denominator,display:`${value.toFixed(2)} 万人`}}
       if(riskContext&&!item.node){const value=parent*adjusted[i]/adjustedTotal;return {value,display:`${value.toFixed(2)} 万人`}}
       if(riskContext&&item.node){
         const p=populationFor(item.node),risk=homeRisk(item.node),parts=diseaseCombinations(p),total=parts.reduce((sum,part)=>sum+part.value,0);
@@ -4071,11 +4072,11 @@ showMetricDetail=function(el){
   }
   function draw(){
     const items=rows(),values=valuesFor(items),ratioLabel=({'全口径患者数':'占常住人口比例','专档患者数':'建档率','风险分层人数':'占专档比例','高风险患者数':'占风险分层比例','中风险患者数':'占风险分层比例','低风险患者数':'占风险分层比例'})[label]||null;
-    const ratios=items.map((item,i)=>ratioLabel?values[i].value/Math.max(.000001,values[i].denominator)*100:values[i].value);
+    const ratios=items.map((item,i)=>ratioLabel?(Number.isFinite(values[i].denominator)&&values[i].denominator>0?Number(values[i].value.toFixed(2))/values[i].denominator*100:null):values[i].value);
     const order=items.map((_,i)=>i).sort((a,b)=>ratios[b]-ratios[a]);
     const resident=label.includes('常住人口'),level=path.length===0?'地市':path.length===1?'区县':'乡镇街道',max=Math.max(1,...values.map(item=>item.value)),periods=[...new Set(values.map(item=>item.display.match(/（(.+)）$/)?.[1]).filter(Boolean))],period=periods.length===1?periods[0]:'',displayUnit=resident?(path.length===2?'人':'万人'):unit;
-    const rowMarkup=(item,i)=>{const entry=values[i],number=resident?entry.display.replace(/\s*(?:万人|人)\s*(?:（.+）)?$/,'').replace(/,/g,''):entry.display,bar=Math.max(0,Math.min(100,ratioLabel?ratios[i]:entry.value/max*100)),name=`<span class="metric-region-name">${esc(item.name)}</span><span class="metric-value-track" aria-label="${ratioLabel||'数值规模'} ${bar.toFixed(2)}%"><i style="width:${bar}%"></i>${ratioLabel?`<small>${ratios[i].toFixed(2)}%</small>`:''}</span><strong>${esc(number)}${resident&&!period&&entry.display.match(/（(.+)）$/)?`<small>${esc(entry.display.match(/（(.+)）$/)[1])}</small>`:''}</strong>`;return item.level!=='town'?`<button class="metric-detail-row" type="button" data-detail-index="${i}" aria-label="${esc(item.name)} ${esc(entry.display)}，查看下级区域">${name}</button>`:`<div class="metric-detail-row">${name}</div>`};
-    dialog.innerHTML=`<header><h2><b>${esc(label)}</b><span>${level}明细</span></h2><button type="button" data-detail-close aria-label="关闭">×</button></header><div class="metric-detail-content">${path.length?`<div class="metric-detail-meta"><nav aria-label="区域层级"><button type="button" data-detail-back="0">浙江省</button>${path.map((item,i)=>`<span> / </span><button type="button" data-detail-back="${i+1}">${esc(item.name)}</button>`).join('')}</nav></div>`:''}<div class="metric-detail-section-title"><strong>${level}明细</strong>${displayUnit&&!riskContext?`<span>单位：${esc(displayUnit)}</span>`:''}</div><div class="metric-detail-table"><div class="metric-detail-row metric-detail-heading"><span>${level}</span><span>${ratioLabel|| (resident?'人口规模':'数值规模')}</span><span>${riskContext?'人数':esc(label)}</span></div>${items.length?order.map(i=>rowMarkup(items[i],i)).join(''):'<p class="metric-detail-empty">暂无下级区域数据</p>'}</div><footer class="metric-detail-footer"><span>${riskContext?`演示数据：${esc(riskContext.category)}专档患者中${esc(riskContext.level)}人数`:`演示数据：${esc(label)}`}</span><span>已展示全部 ${items.length} 个${level}</span></footer></div>`;
+    const rowMarkup=(item,i)=>{const entry=values[i],number=resident?entry.display.replace(/\s*(?:万人|人)\s*(?:（.+）)?$/,'').replace(/,/g,''):entry.display,ratio=ratios[i],bar=Math.max(0,Math.min(100,ratioLabel?(ratio??0):entry.value/max*100)),name=`<span class="metric-region-name">${esc(item.name)}</span><span class="metric-value-track" aria-label="${ratioLabel||'数值规模'} ${ratioLabel&&ratio===null?'暂无数据':bar.toFixed(2)+'%'}"><i style="width:${bar}%"></i>${ratioLabel?`<small>${ratio===null?'暂无数据':ratio.toFixed(2)+'%'}</small>`:''}</span><strong>${esc(number)}${resident&&!period&&entry.display.match(/（(.+)）$/)?`<small>${esc(entry.display.match(/（(.+)）$/)[1])}</small>`:''}</strong>`;return item.level!=='town'?`<button class="metric-detail-row" type="button" data-detail-index="${i}" aria-label="${esc(item.name)} ${esc(entry.display)}，查看下级区域">${name}</button>`:`<div class="metric-detail-row">${name}</div>`};
+    dialog.innerHTML=`<header><h2><b>${esc(label)}</b><span>${level}明细</span></h2><button type="button" data-detail-close aria-label="关闭">×</button></header><div class="metric-detail-content">${path.length?`<div class="metric-detail-meta"><nav aria-label="区域层级">${path.map((item,i)=>`${i?' / ':''}<button type="button" data-detail-back="${i+1}">${esc(item.name)}</button>`).join('')}</nav></div>`:''}<div class="metric-detail-section-title"><strong>${level}明细</strong>${displayUnit&&!riskContext?`<span>单位：${esc(displayUnit)}</span>`:''}</div><div class="metric-detail-table"><div class="metric-detail-row metric-detail-heading"><span>${level}</span><span>${ratioLabel|| (resident?'人口规模':'数值规模')}</span><span>${riskContext?'人数':esc(el.dataset.detailColumn||label)}</span></div>${items.length?order.map(i=>rowMarkup(items[i],i)).join(''):'<p class="metric-detail-empty">暂无下级区域数据</p>'}</div><footer class="metric-detail-footer"><span>${riskContext?`演示数据：${esc(riskContext.category)}专档患者中${esc(riskContext.level)}人数`:`演示数据：${esc(label)}`}</span><span>已展示全部 ${items.length} 个${level}</span></footer></div>`;
     if(period)dialog.querySelector('.metric-detail-footer span')?.append(`；数据年份：${period}`);
     dialog.querySelector('.metric-detail-table').scrollTop=0;
   }
@@ -4344,7 +4345,7 @@ const dashboardAfterDetailReview=dashboard;
 dashboard=function(){const root=document.createElement('div');root.innerHTML=dashboardAfterDetailReview();const board=root.querySelector('#dashboardBoard');if(!board)return root.innerHTML;
   board.querySelectorAll('.home-target-item').forEach(row=>{const value=row.querySelector('.home-target-actual'),name=row.querySelector('.home-target-label span')?.textContent.trim();if(value&&name){value.classList.add('metric-detail-trigger');value.dataset.detailLabel=`${name}控制率`;value.setAttribute('role','button');value.setAttribute('tabindex','0')}});
   board.querySelectorAll('.home-population-distribution .situation-bars > div').forEach((row,i)=>{if(i===0&&row.querySelector('strong'))row.querySelector('strong').dataset.detailLabel='3病叠加人数'});
-  board.querySelectorAll('.risk-composition-row').forEach(row=>{const name=row.querySelector('span')?.textContent.trim(),value=row.querySelector('strong');if(value&&['高风险','中风险','低风险'].includes(name))value.dataset.detailLabel=`${name}患者数`});
+  board.querySelectorAll('.risk-composition-row').forEach(row=>{const name=row.querySelector('span')?.textContent.trim(),value=row.querySelector('strong');if(value&&['高风险','中风险','低风险','未知风险'].includes(name))value.dataset.detailLabel=`${name}患者数`});
   return root.innerHTML};
 pages.dashboard=dashboard;
 render();
@@ -4460,7 +4461,7 @@ dashboard=function(){
   const offsets=[[3.9,2.5,1.8,.9,.7,.1,-1.3,-2.5,-3.6,-5.2,-5.9],[3.9,2.3,1.3,.6,.4,-.3,-.9,-2.1,-3.3,-4.7,-5.9],[3.3,2,1,.7,.2,-.1,-.8,-1.7,-2.6,-4.3,-5.1],[2.6,2.1,1.5,1,.4,-.2,-.8,-1.5,-2.3,-3.1,-4.2]];
   const names=['杭州','宁波','湖州','嘉兴','温州','绍兴','台州','金华','舟山','衢州','丽水'];
   const tabs=(key)=>`<div class="outcome-metric-tabs" role="group" aria-label="选择指标">${labels.map((label,i)=>`<button type="button" data-outcome-metric="${key}" data-metric-index="${i}" aria-pressed="${outcomeMetricChoice[key]===i}">${label}</button>`).join('')}</div>`;
-  const ranking=(key,title)=>{const index=outcomeMetricChoice[key],base=baseValues[key==='high'?1:0][index],node=currentNode(),level=state.city==='all'?'province':state.city.split(':')[0];let units=level==='province'?(state.mapScope==='county'?counties:cities):level==='city'?counties.filter(item=>item.cityName===node.name):[];let rows=units.map(item=>({name:item.name,value:outcomeRegionValue(item,index,key==='high')}));if(level==='county'){const prefix=`${node.cityName}/${node.name}/`;rows=Object.keys(window.RESIDENT_POPULATION?.towns||{}).filter(name=>name.startsWith(prefix)).map(name=>{const town=name.slice(prefix.length),seed=[...town].reduce((sum,char)=>sum+char.charCodeAt(0),0);return {name:town,value:Math.max(0,Math.min(100,outcomeRegionValue(node,index,key==='high')+(seed%101-50)/20))}})}rows=rows.filter(row=>Number.isFinite(row.value)).map(row=>({...row,delta:row.value-base})).sort((a,b)=>b.delta-a.delta);const extent=Math.max(1,...rows.map(row=>Math.abs(row.delta))),regionLabel=level==='city'?'区县':level==='county'?'乡镇街道':state.mapScope==='county'?'区县':'地市';return `<section class="outcome-new-panel outcome-new-ranking situation-risk-ranking"><header><h2>${title}</h2>${tabs(key)}</header><div class="outcome-ranking-heading"><span>${regionLabel}</span><span>← 低于均值　|　高于均值 →</span><span>控制率</span><span>偏差</span></div><div class="outcome-ranking-rows" style="grid-template-rows:repeat(${Math.max(11,rows.length)},minmax(0,1fr))">${rows.map(({name,value,delta})=>`<div class="risk-ranking-row"><span>${esc(name.replace(/市$/,''))}</span><div class="risk-ranking-track"><i class="${delta>=0?'above':'below'}" style="width:${Math.abs(delta)/extent*48}%"></i></div><small class="risk-ranking-value">${value.toFixed(2)}%</small><strong>${delta>=0?'+':''}${delta.toFixed(2)}</strong></div>`).join('')||'<div>暂无下级区域数据</div>'}</div><div class="outcome-ranking-average">省均值 ${base.toFixed(2)}%</div></section>`};
+  const ranking=(key,title)=>{const index=outcomeMetricChoice[key],base=baseValues[key==='high'?1:0][index],node=currentNode(),level=state.city==='all'?'province':state.city.split(':')[0];let units=level==='province'?(state.mapScope==='county'?counties:cities):level==='city'?counties.filter(item=>item.cityName===node.name):[];let rows=units.map(item=>({name:item.name,value:outcomeRegionValue(item,index,key==='high')}));if(level==='county'){const prefix=`${node.cityName}/${node.name}/`;rows=Object.keys(window.RESIDENT_POPULATION?.towns||{}).filter(name=>name.startsWith(prefix)).map(name=>{const town=name.slice(prefix.length),seed=[...town].reduce((sum,char)=>sum+char.charCodeAt(0),0);return {name:town,value:Math.max(0,Math.min(100,outcomeRegionValue(node,index,key==='high')+(seed%101-50)/20))}})}rows=rows.filter(row=>Number.isFinite(row.value)).map(row=>({...row,delta:row.value-base})).sort((a,b)=>b.delta-a.delta);const extent=Math.max(1,...rows.map(row=>Math.abs(row.delta))),regionLabel=level==='city'?'区县':level==='county'?'乡镇街道':state.mapScope==='county'?'区县':'地市';return `<section class="outcome-new-panel outcome-new-ranking situation-risk-ranking"><header><h2>${title}</h2>${tabs(key)}</header><div class="outcome-ranking-heading"><span>${regionLabel}</span><span>← 低于均值　|　高于均值 →</span><span>控制率</span><span>偏差</span></div><div class="outcome-ranking-rows" style="grid-template-rows:repeat(${Math.max(1,rows.length)},minmax(28px,1fr))">${rows.map(({name,value,delta})=>`<div class="risk-ranking-row"><span>${esc(name.replace(/市$/,''))}</span><div class="risk-ranking-track"><i class="${delta>=0?'above':'below'}" style="width:${Math.abs(delta)/extent*48}%"></i></div><small class="risk-ranking-value">${value.toFixed(2)}%</small><strong>${delta>=0?'+':''}${delta.toFixed(2)}</strong></div>`).join('')||'<div>暂无下级区域数据</div>'}</div><div class="outcome-ranking-average">省均值 ${base.toFixed(2)}%</div></section>`};
   const middle=layout.querySelector('.outcome-new-middle'),sankey=middle.querySelector('.outcome-new-sankey'),trend=layout.querySelector('.outcome-new-trend');
   middle.innerHTML=ranking('overall','控制率与省均值偏差')+ranking('high','高风险人群控制率与省均值偏差');
   sankey.querySelector('h2').textContent='风险等级迁移';sankey.querySelector('svg').setAttribute('preserveAspectRatio','xMidYMid meet');
@@ -4669,6 +4670,46 @@ dashboard=function(){
       bars.classList.add('home-comorbidity-chart');bars.append(ring);
     }
   }
+  root.querySelectorAll('.board-kpis > .board-kpi').forEach(card=>{
+    const label=card.querySelector(':scope > span')?.textContent.trim();
+    const value=card.querySelector(':scope > strong');
+    if(value&&['基层就诊人次','一体化门诊服务人次'].includes(label)){
+      const number=Number(value.textContent.replace(/,/g,'').match(/-?\d+(?:\.\d+)?/)?.[0]);
+      if(Number.isFinite(number))value.title=`${number.toFixed(1)} 万人次`;
+      value.setAttribute('aria-label',`${label} ${value.textContent.trim()}${value.classList.contains('metric-detail-trigger')?'，查看区域明细':''}`);
+    }
+  });
+  const diseases=['高血压','糖尿病','慢阻肺'];
+  const metrics=['确诊人数','专档患者数','风险分层人数','高风险患者数'];
+  root.querySelectorAll('.home-disease-table .disease-table-row').forEach((row,rowIndex)=>{
+    row.querySelectorAll(':scope > div').forEach((cell,columnIndex)=>{
+      const value=cell.querySelector('strong');
+      if(value&&metrics[rowIndex]&&diseases[columnIndex]){
+        const label=`${diseases[columnIndex]} · ${metrics[rowIndex]}`;
+        value.dataset.detailLabel=label;
+        value.dataset.detailColumn='人数';
+        value.setAttribute('aria-label',`${label} ${value.textContent.trim()}万人，查看区域明细`);
+      }
+    });
+  });
+  root.querySelectorAll('.home-population-distribution .situation-bars > div').forEach(row=>{
+    const category=row.querySelector('span')?.textContent.trim();
+    const value=row.querySelector('strong');
+    if(value&&['2病共患','仅高血压','仅糖尿病','仅慢阻肺'].includes(category)){
+      const label=category+'人数';
+      value.dataset.detailLabel=label;
+      value.setAttribute('aria-label',`${label} ${value.textContent.trim()}，查看区域明细`);
+    }
+  });
+  root.querySelectorAll('.construction-kpis > .board-kpi').forEach(card=>{
+    const label=card.querySelector(':scope > span')?.textContent.trim();
+    const value=card.querySelector(':scope > strong');
+    if(label==='路径节点总执行率'&&value){
+      const number=Number(value.textContent.replace(/,/g,'').match(/-?\d+(?:\.\d+)?/)?.[0]);
+      if(Number.isFinite(number))value.title=`${number.toFixed(1)}%`;
+      value.setAttribute('aria-label',`${label} ${value.textContent.trim()}，查看区域明细`);
+    }
+  });
   return root.innerHTML;
 };
 pages.dashboard=dashboard;

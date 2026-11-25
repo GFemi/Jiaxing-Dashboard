@@ -1164,7 +1164,7 @@ dashboard=function(){
     }
     return root.innerHTML;
   }
-  if(state.dashboardMetricView!=='situation'){state.mapMetric='risk';state.situationCombination='7';state.mapScope=scopeLevel()==='province'?'city':'county';state.dashboardMetricView='situation';mapZoom=1}
+  if(state.dashboardMetricView!=='situation'){state.mapMetric='risk';state.situationCombination='7';state.mapScope=scopeLevel()==='province'?'city':scopeLevel()==='county'?'town':'county';state.dashboardMetricView='situation';mapZoom=1}
   const root=document.createElement('div');root.innerHTML=dashboardBeforeSituation();const board=root.querySelector('#dashboardBoard'),parts=situationPanels();
   board.classList.add('situation-board','board-no-kpis');board.querySelector('.board-stack').innerHTML=parts.left;board.querySelector('.board-stack:last-child').innerHTML=parts.right;
   board.querySelector('.board-kpis')?.remove();
@@ -2285,6 +2285,8 @@ const renderProvinceMapBeforeTownships=renderProvinceMap;
 renderProvinceMap=function(){
   document.querySelector('.township-boundary-notice')?.remove();
   const scale=document.querySelector('#mapStage .map-scale');if(scale)scale.style.visibility='';
+  // A selected county always displays its townships, even after a dashboard tab switch.
+  if(state.page==='dashboard'&&scopeLevel()==='county')state.mapScope='town';
   if(state.page!=='dashboard'||state.mapScope!=='town'){renderProvinceMapBeforeTownships();return}
   const element=$('zhejiangMap'),county=currentNode();
   if(!element)return;
@@ -3908,7 +3910,7 @@ function dashboardHeatColor(value,average,extent){
 }
 const mountBeforeUnifiedHeat=window.ZhejiangMap3D?.mount;
 if(mountBeforeUnifiedHeat)window.ZhejiangMap3D.mount=function(host,geo,values,options){
-  if(state.city==='city:嘉兴市'&&state.mapScope==='county')options={...options,relativeDepth:true};
+  if((state.city==='city:嘉兴市'&&state.mapScope==='county')||scopeLevel()==='county')options={...options,relativeDepth:true};
   if(state.page!=='dashboard')return originalHomeMapMount(host,geo,values,options);
   const average=dashboardMapBenchmark(),extent=Math.max(.01,...values.map(x=>Math.abs(x.value-average)).filter(Number.isFinite));
   if(!Number.isFinite(average))return originalHomeMapMount(host,geo,values,options);

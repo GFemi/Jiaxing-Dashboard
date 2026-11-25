@@ -34,7 +34,7 @@ function mount(host, geojson, values, callbacks) {
   controls.minPolarAngle = Math.PI * .13;
   controls.target.set(0, 0, 0);
   const viewSize = Math.max(projectedWidth, projectedHeight) * 1.18;
-  const depth = callbacks.townLevel ? Math.max(projectedWidth, projectedHeight) * .055 : 10;
+  const depth = callbacks.townLevel || callbacks.relativeDepth ? Math.max(projectedWidth, projectedHeight) * .055 : 10;
   const meshes = [];
   for (const [from, to] of callbacks.flowLines || []) {
     const [x1, y1] = project(from), [x2, y2] = project(to);

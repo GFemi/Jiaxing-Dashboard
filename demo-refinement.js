@@ -4018,6 +4018,12 @@ function metricDetailValue(label,region){
     const record=region.level==='city'?data.cities?.[region.name]:region.level==='county'?data.counties?.[`${region.city}/${region.name}`]:data.towns?.[`${region.city}/${region.county}/${region.name}`];
     return record?`${Number(record[0]).toLocaleString()} ${region.level==='town'?'人':'万人'}（${record[1]}）`:null;
   }
+  if(label==='高风险患者占比'){
+    const target=node||(region.level==='town'?{name:region.name,cityName:region.city,countyName:region.county}:null);
+    if(!target)return null;
+    const value=riskRankingValue(target);
+    return Number.isFinite(value)?`${value.toFixed(2)}%`:null;
+  }
   if(!node)return null;
   const report=clinicReportRow(node);
   if(label==='基本保障')return report?`${report[1]} 家`:null;
@@ -4032,6 +4038,10 @@ function metricDetailValue(label,region){
   if(label==='医防融合入径率')return `${dashboardRate(node,'entry').toFixed(1)}%`;
   if(label==='路径节点总执行率')return `${constructionValue(node,'monitoring').toFixed(1)}%`;
   return null;
+}
+function metricDetailBarWidth(value,max,percentage){
+  if(!Number.isFinite(value))return 0;
+  return Math.max(0,Math.min(100,percentage?value:max>0?value/max*100:0));
 }
 showMetricDetail=function(el){
   if(state.page==='dashboard'&&state.mapScope==='town'&&scopeLevel()==='county')return;
@@ -4097,8 +4107,9 @@ showMetricDetail=function(el){
     const items=rows(),values=valuesFor(items),ratioLabel=({'全口径患者数':'占常住人口比例','专档患者数':'建档率','风险分层人数':'占专档比例','高风险患者数':'占风险分层比例','中风险患者数':'占风险分层比例','低风险患者数':'占风险分层比例'})[label]||null;
     const ratios=items.map((item,i)=>ratioLabel?(Number.isFinite(values[i].denominator)&&values[i].denominator>0?Number(values[i].value.toFixed(2))/values[i].denominator*100:null):values[i].value);
     const order=items.map((_,i)=>i).sort((a,b)=>ratios[b]-ratios[a]);
-    const resident=label.includes('常住人口'),level=path.length===0?'地市':path.length===1?'区县':'乡镇街道',max=Math.max(1,...values.map(item=>item.value)),periods=[...new Set(values.map(item=>item.display.match(/（(.+)）$/)?.[1]).filter(Boolean))],period=periods.length===1?periods[0]:'',displayUnit=resident?(path.length===2?'人':'万人'):unit;
-    const rowMarkup=(item,i)=>{const entry=values[i],number=resident?entry.display.replace(/\s*(?:万人|人)\s*(?:（.+）)?$/,'').replace(/,/g,''):entry.display,ratio=ratios[i],bar=Math.max(0,Math.min(100,ratioLabel?(ratio??0):entry.value/max*100)),name=`<span class="metric-region-name">${esc(item.name)}</span><span class="metric-value-track" aria-label="${ratioLabel||'数值规模'} ${ratioLabel&&ratio===null?'暂无数据':bar.toFixed(2)+'%'}"><i style="width:${bar}%"></i>${ratioLabel?`<small>${ratio===null?'暂无数据':ratio.toFixed(2)+'%'}</small>`:''}</span><strong>${esc(number)}${resident&&!period&&entry.display.match(/（(.+)）$/)?`<small>${esc(entry.display.match(/（(.+)）$/)[1])}</small>`:''}</strong>`;return item.level!=='town'?`<button class="metric-detail-row" type="button" data-detail-index="${i}" aria-label="${esc(item.name)} ${esc(entry.display)}，查看下级区域">${name}</button>`:`<div class="metric-detail-row">${name}</div>`};
+    const resident=label.includes('常住人口'),level=path.length===0?'地市':path.length===1?'区县':'乡镇街道',max=Math.max(0,...values.map(item=>Number.isFinite(item.value)?item.value:0)),periods=[...new Set(values.map(item=>item.display.match(/（(.+)）$/)?.[1]).filter(Boolean))],period=periods.length===1?periods[0]:'',displayUnit=resident?(path.length===2?'人':'万人'):unit;
+    const exceptionalRate=unit==='pp'||/增长|增幅|下降率|变化率|同比|环比|偏差|差距/.test(label);
+    const rowMarkup=(item,i)=>{const entry=values[i],number=resident?entry.display.replace(/\s*(?:万人|人)\s*(?:（.+）)?$/,'').replace(/,/g,''):entry.display,ratio=ratios[i],bar=ratioLabel?metricDetailBarWidth(ratio,0,true):exceptionalRate?metricDetailBarWidth(entry.value,Math.max(1,max),false):metricDetailBarWidth(entry.value,max,isRate),name=`<span class="metric-region-name">${esc(item.name)}</span><span class="metric-value-track" aria-label="${ratioLabel||'数值规模'} ${ratioLabel&&ratio===null?'暂无数据':bar.toFixed(2)+'%'}"><i style="width:${bar}%"></i>${ratioLabel?`<small>${ratio===null?'暂无数据':ratio.toFixed(2)+'%'}</small>`:''}</span><strong>${esc(number)}${resident&&!period&&entry.display.match(/（(.+)）$/)?`<small>${esc(entry.display.match(/（(.+)）$/)[1])}</small>`:''}</strong>`;return item.level!=='town'?`<button class="metric-detail-row" type="button" data-detail-index="${i}" aria-label="${esc(item.name)} ${esc(entry.display)}，查看下级区域">${name}</button>`:`<div class="metric-detail-row">${name}</div>`};
     dialog.innerHTML=`<header><h2><b>${esc(label)}</b><span>${level}明细</span></h2><button type="button" data-detail-close aria-label="关闭">×</button></header><div class="metric-detail-content">${path.length?`<div class="metric-detail-meta"><nav aria-label="区域层级">${path.map((item,i)=>`${i?' / ':''}<button type="button" data-detail-back="${i+1}">${esc(item.name)}</button>`).join('')}</nav></div>`:''}<div class="metric-detail-section-title"><strong>${level}明细</strong>${displayUnit&&!riskContext?`<span>单位：${esc(displayUnit)}</span>`:''}</div><div class="metric-detail-table"><div class="metric-detail-row metric-detail-heading"><span>${level}</span><span>${ratioLabel|| (resident?'人口规模':'数值规模')}</span><span>${riskContext?'人数':esc(el.dataset.detailColumn||label)}</span></div>${items.length?order.map(i=>rowMarkup(items[i],i)).join(''):'<p class="metric-detail-empty">暂无下级区域数据</p>'}</div><footer class="metric-detail-footer"><span>${riskContext?`演示数据：${esc(riskContext.category)}专档患者中${esc(riskContext.level)}人数`:`演示数据：${esc(label)}`}</span><span>已展示全部 ${items.length} 个${level}</span></footer></div>`;
     if(period)dialog.querySelector('.metric-detail-footer span')?.append(`；数据年份：${period}`);
     dialog.querySelector('.metric-detail-table').scrollTop=0;
@@ -4395,6 +4406,8 @@ dashboard=function(){
   const board=root.querySelector('#dashboardBoard'),panel=board?.querySelector('.situation-risk-ranking');
   if(panel&&situationActive()){
     const province=homeMapValue(localBenchmarkNode(),'highRisk'),items=riskRankingChildren(currentNode()).map(node=>({node,value:riskRankingValue(node)})).filter(item=>Number.isFinite(item.value)).sort((a,b)=>b.value-a.value),extent=Math.max(1,...items.map(item=>Math.abs(item.value-province)));
+    const average=panel.querySelector('.risk-ranking-axis > div > span');
+    if(average){average.textContent=`${province.toFixed(2)}%`;average.dataset.detailLabel='高风险患者占比';average.dataset.detailValue=`${province.toFixed(2)}%`;average.classList.add('metric-detail-trigger');average.setAttribute('role','button');average.setAttribute('tabindex','0');average.setAttribute('aria-label',`${dashboardBenchmarkLabel()} ${province.toFixed(2)}%，查看区域明细`)}
     const heading=panel.querySelector('.risk-ranking-heading span');if(heading)heading.textContent=!currentNode()?'地市':state.city.startsWith('city:')?'区县':'乡镇街道';
     const rows=panel.querySelector('.risk-ranking-rows');if(rows)rows.innerHTML=items.map(({node,value})=>{const delta=value-province;return `<div class="risk-ranking-row" data-risk-region="${esc(node.name)}"><span>${esc(node.name)}</span><div class="risk-ranking-track"><i class="${delta>=0?'above':'below'}" style="width:${Math.abs(delta)/extent*45}%"></i></div><small class="risk-ranking-value">${value.toFixed(2)}%</small><strong class="risk-region-detail" role="button" tabindex="0" aria-label="${esc(node.name)}高风险患者占比，查看下级区域">${delta>=0?'+':''}${delta.toFixed(2)}</strong></div>`}).join('');
   }

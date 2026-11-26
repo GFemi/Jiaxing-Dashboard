@@ -1602,7 +1602,7 @@ function applyDashboardSpacingRevision(html){
   const host=document.createElement('div');host.innerHTML=html;
   const board=host.querySelector('#dashboardBoard');
   const title=board.querySelector('.board-title h1');
-  if(title)title.textContent='基层慢病健康管理服务平台';
+  if(title)title.textContent='嘉兴市多病共管服务平台';
   const view=state.dashboardView||'home';
   if(view==='home'){
     const p=populationData(),metrics=clinicMetrics(currentNode()),kpis=board.querySelectorAll('.board-kpi');
